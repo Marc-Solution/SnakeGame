@@ -89,7 +89,7 @@ struct ContentView: View {
                 }
             }
             .animation(.easeInOut(duration: 0.3), value: viewModel.gameState)
-            // Keyboard Support
+            // Keyboard Support (iOS 17+)
             .focusable()
             .focused($isGameFocused)
             .onKeyPress(.upArrow) {
@@ -109,26 +109,22 @@ struct ContentView: View {
                 return .handled
             }
             .onKeyPress(.space) {
-                if viewModel.gameState == .idle {
-                    viewModel.startGame()
-                } else if viewModel.gameState == .gameOver {
-                    viewModel.startGame()
-                }
+                handleSpaceKey()
                 return .handled
             }
-            .onKeyPress("w") {
+            .onKeyPress(characters: .init(charactersIn: "wW")) { _ in
                 viewModel.swipeUp()
                 return .handled
             }
-            .onKeyPress("s") {
+            .onKeyPress(characters: .init(charactersIn: "sS")) { _ in
                 viewModel.swipeDown()
                 return .handled
             }
-            .onKeyPress("a") {
+            .onKeyPress(characters: .init(charactersIn: "aA")) { _ in
                 viewModel.swipeLeft()
                 return .handled
             }
-            .onKeyPress("d") {
+            .onKeyPress(characters: .init(charactersIn: "dD")) { _ in
                 viewModel.swipeRight()
                 return .handled
             }
@@ -137,6 +133,14 @@ struct ContentView: View {
             }
         }
         .preferredColorScheme(.dark)
+    }
+    
+    // MARK: - Key Press Handlers
+    
+    private func handleSpaceKey() {
+        if viewModel.gameState == .idle || viewModel.gameState == .gameOver {
+            viewModel.startGame()
+        }
     }
     
     // MARK: - Swipe Gesture
@@ -248,10 +252,8 @@ struct DPadButton: View {
     var body: some View {
         Button(action: {
             // Haptic feedback
-            #if os(iOS)
             let impact = UIImpactFeedbackGenerator(style: .light)
             impact.impactOccurred()
-            #endif
             action()
         }) {
             Image(systemName: systemImage)
@@ -280,7 +282,7 @@ struct DPadButtonStyle: ButtonStyle {
         configuration.label
             .scaleEffect(configuration.isPressed ? 0.95 : 1.0)
             .animation(.easeInOut(duration: 0.1), value: configuration.isPressed)
-            .onChange(of: configuration.isPressed) { _, newValue in
+            .onChange(of: configuration.isPressed) { oldValue, newValue in
                 isPressed = newValue
             }
     }

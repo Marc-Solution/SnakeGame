@@ -10,7 +10,7 @@ import Foundation
 // MARK: - Grid Configuration
 
 /// Configuration constants for the game grid
-enum GridConfig {
+enum GridConfig: Sendable {
     static let columns: Int = 20
     static let rows: Int = 20
 }
@@ -18,7 +18,7 @@ enum GridConfig {
 // MARK: - Grid Point
 
 /// Represents a single point/cell on the game grid
-struct GridPoint: Equatable, Hashable {
+struct GridPoint: Equatable, Hashable, Sendable {
     let x: Int
     let y: Int
     
@@ -45,7 +45,7 @@ struct GridPoint: Equatable, Hashable {
 // MARK: - Direction
 
 /// Movement directions for the snake
-enum Direction: CaseIterable {
+enum Direction: CaseIterable, Sendable {
     case up
     case down
     case left
@@ -70,7 +70,7 @@ enum Direction: CaseIterable {
 // MARK: - Snake
 
 /// Represents the snake with its body segments
-struct Snake {
+struct Snake: Sendable {
     /// Array of grid points representing the snake's body.
     /// The first element is the head, the last is the tail.
     private(set) var body: [GridPoint]
@@ -155,7 +155,7 @@ struct Snake {
 // MARK: - Food
 
 /// Represents food on the game grid
-struct Food {
+struct Food: Sendable {
     let position: GridPoint
     
     /// Generates food at a random position that doesn't overlap with the snake
@@ -181,10 +181,9 @@ struct Food {
 // MARK: - Game State
 
 /// Represents the current state of the game
-enum GameState: Equatable {
+enum GameState: Equatable, Sendable {
     case idle       // Game hasn't started yet
     case playing    // Game is actively running
     case paused     // Game is paused
     case gameOver   // Game has ended
 }
-

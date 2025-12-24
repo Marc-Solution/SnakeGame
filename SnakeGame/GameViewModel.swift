@@ -6,14 +6,14 @@
 //
 
 import Foundation
-import Combine
+@preconcurrency import Combine
 
 // MARK: - Game Configuration
 
 /// Configuration constants for game mechanics
-enum GameConfig {
+enum GameConfig: Sendable {
     /// Time interval between snake movements (in seconds)
-    static let moveInterval: TimeInterval = 0.2
+    static let moveInterval: TimeInterval = 0.15
     
     /// Points awarded for eating food
     static let pointsPerFood: Int = 10
@@ -104,13 +104,18 @@ final class GameViewModel: ObservableObject {
     private func resetGame() {
         stopGameLoop()
         snake = Snake()
-        food = Food.spawn(avoiding: snake)
+        food = spawnFood()
         score = 0
         nextDirection = nil
         gameState = .idle
     }
     
-    /// Starts the game loop timer
+    /// Spawns food at a random position avoiding the snake
+    private func spawnFood() -> Food {
+        Food.spawn(avoiding: snake)
+    }
+    
+    /// Starts the game loop timer on the MainActor
     private func startGameLoop() {
         stopGameLoop() // Ensure no duplicate timers
         
@@ -134,19 +139,31 @@ final class GameViewModel: ObservableObject {
         // Apply buffered direction change
         applyBufferedDirection()
         
+        // Move the snake and check for collisions
+        moveSnake()
+    }
+    
+    /// Applies the buffered direction change to the snake
+    private func applyBufferedDirection() {
+        if let direction = nextDirection {
+            _ = snake.changeDirection(to: direction)
+            nextDirection = nil
+        }
+    }
+    
+    /// Moves the snake and handles collision detection
+    private func moveSnake() {
         // Check for collisions before moving (peek ahead)
         let nextHeadPosition = snake.head.moved(in: snake.direction)
         
         // Check wall collision
-        if !nextHeadPosition.isWithinBounds {
+        if checkWallCollision(at: nextHeadPosition) {
             endGame()
             return
         }
         
-        // Check self collision (excluding the tail tip if not growing)
-        // We need to check against current body minus the tail (since tail moves)
-        let bodyWithoutTail = Array(snake.body.dropLast())
-        if bodyWithoutTail.contains(nextHeadPosition) {
+        // Check self collision
+        if checkSelfCollision(at: nextHeadPosition) {
             endGame()
             return
         }
@@ -159,29 +176,32 @@ final class GameViewModel: ObservableObject {
         
         // Handle food consumption
         if willEatFood {
-            score += GameConfig.pointsPerFood
-            food = Food.spawn(avoiding: snake)
+            handleFoodConsumption()
         }
     }
     
-    /// Applies the buffered direction change to the snake
-    private func applyBufferedDirection() {
-        if let direction = nextDirection {
-            _ = snake.changeDirection(to: direction)
-            nextDirection = nil
-        }
+    /// Checks if the given position collides with a wall
+    private func checkWallCollision(at position: GridPoint) -> Bool {
+        !position.isWithinBounds
+    }
+    
+    /// Checks if the given position collides with the snake's body
+    private func checkSelfCollision(at position: GridPoint) -> Bool {
+        // We check against body minus the tail (since tail moves away)
+        let bodyWithoutTail = Array(snake.body.dropLast())
+        return bodyWithoutTail.contains(position)
+    }
+    
+    /// Handles scoring and food respawn when snake eats food
+    private func handleFoodConsumption() {
+        score += GameConfig.pointsPerFood
+        food = spawnFood()
     }
     
     /// Ends the game
     private func endGame() {
         stopGameLoop()
         gameState = .gameOver
-    }
-    
-    // MARK: - Deinitializer
-    
-    deinit {
-        gameTimer?.invalidate()
     }
 }
 

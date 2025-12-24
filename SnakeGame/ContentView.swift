@@ -18,12 +18,18 @@ extension Color {
     static let foodHighlight = Color(red: 1.0, green: 0.5, blue: 0.5)
     static let neonGreen = Color(red: 0.0, green: 1.0, blue: 0.5)
     static let overlayBackground = Color.black.opacity(0.85)
+    static let dpadButton = Color(red: 0.2, green: 0.22, blue: 0.28)
+    static let dpadButtonPressed = Color(red: 0.25, green: 0.28, blue: 0.35)
 }
 
 // MARK: - Main Content View
 
 struct ContentView: View {
     @StateObject private var viewModel = GameViewModel()
+    @FocusState private var isGameFocused: Bool
+    
+    /// Toggle to show/hide the D-Pad controls (for testing)
+    @State private var showDPad: Bool = true
     
     var body: some View {
         GeometryReader { geometry in
@@ -34,7 +40,7 @@ struct ContentView: View {
                 Color.arcadeBackground
                     .ignoresSafeArea()
                 
-                VStack(spacing: 20) {
+                VStack(spacing: 16) {
                     // HUD - Score Display
                     ScoreHUD(score: viewModel.score, gameState: viewModel.gameState)
                     
@@ -55,7 +61,16 @@ struct ContentView: View {
                         StartPrompt()
                     }
                     
-                    Spacer()
+                    // D-Pad Controls (for testing)
+                    if showDPad && viewModel.gameState != .gameOver {
+                        DPadControls(
+                            onUp: { viewModel.swipeUp() },
+                            onDown: { viewModel.swipeDown() },
+                            onLeft: { viewModel.swipeLeft() },
+                            onRight: { viewModel.swipeRight() }
+                        )
+                        .padding(.bottom, 20)
+                    }
                 }
                 .padding(.horizontal)
                 
@@ -74,6 +89,52 @@ struct ContentView: View {
                 }
             }
             .animation(.easeInOut(duration: 0.3), value: viewModel.gameState)
+            // Keyboard Support
+            .focusable()
+            .focused($isGameFocused)
+            .onKeyPress(.upArrow) {
+                viewModel.swipeUp()
+                return .handled
+            }
+            .onKeyPress(.downArrow) {
+                viewModel.swipeDown()
+                return .handled
+            }
+            .onKeyPress(.leftArrow) {
+                viewModel.swipeLeft()
+                return .handled
+            }
+            .onKeyPress(.rightArrow) {
+                viewModel.swipeRight()
+                return .handled
+            }
+            .onKeyPress(.space) {
+                if viewModel.gameState == .idle {
+                    viewModel.startGame()
+                } else if viewModel.gameState == .gameOver {
+                    viewModel.startGame()
+                }
+                return .handled
+            }
+            .onKeyPress("w") {
+                viewModel.swipeUp()
+                return .handled
+            }
+            .onKeyPress("s") {
+                viewModel.swipeDown()
+                return .handled
+            }
+            .onKeyPress("a") {
+                viewModel.swipeLeft()
+                return .handled
+            }
+            .onKeyPress("d") {
+                viewModel.swipeRight()
+                return .handled
+            }
+            .onAppear {
+                isGameFocused = true
+            }
         }
         .preferredColorScheme(.dark)
     }
@@ -81,7 +142,7 @@ struct ContentView: View {
     // MARK: - Swipe Gesture
     
     private var swipeGesture: some Gesture {
-        DragGesture(minimumDistance: 20, coordinateSpace: .local)
+        DragGesture(minimumDistance: 10, coordinateSpace: .local)
             .onEnded { value in
                 let horizontal = value.translation.width
                 let vertical = value.translation.height
@@ -110,8 +171,118 @@ struct ContentView: View {
     private func calculateBoardSize(for screenSize: CGSize) -> CGFloat {
         let padding: CGFloat = 32
         let maxWidth = screenSize.width - padding
-        let maxHeight = screenSize.height - 200 // Reserve space for HUD and prompts
+        // Reserve more space when D-Pad is shown
+        let dpadSpace: CGFloat = showDPad ? 180 : 0
+        let maxHeight = screenSize.height - 200 - dpadSpace
         return min(maxWidth, maxHeight)
+    }
+}
+
+// MARK: - D-Pad Controls
+
+struct DPadControls: View {
+    let onUp: () -> Void
+    let onDown: () -> Void
+    let onLeft: () -> Void
+    let onRight: () -> Void
+    
+    private let buttonSize: CGFloat = 60
+    private let spacing: CGFloat = 4
+    
+    var body: some View {
+        VStack(spacing: spacing) {
+            // Up button
+            DPadButton(
+                systemImage: "chevron.up",
+                action: onUp
+            )
+            .frame(width: buttonSize, height: buttonSize)
+            
+            HStack(spacing: spacing) {
+                // Left button
+                DPadButton(
+                    systemImage: "chevron.left",
+                    action: onLeft
+                )
+                .frame(width: buttonSize, height: buttonSize)
+                
+                // Center spacer
+                Color.clear
+                    .frame(width: buttonSize, height: buttonSize)
+                
+                // Right button
+                DPadButton(
+                    systemImage: "chevron.right",
+                    action: onRight
+                )
+                .frame(width: buttonSize, height: buttonSize)
+            }
+            
+            // Down button
+            DPadButton(
+                systemImage: "chevron.down",
+                action: onDown
+            )
+            .frame(width: buttonSize, height: buttonSize)
+        }
+        .padding(12)
+        .background(
+            RoundedRectangle(cornerRadius: 16)
+                .fill(Color.gridLine.opacity(0.3))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 16)
+                        .stroke(Color.neonGreen.opacity(0.2), lineWidth: 1)
+                )
+        )
+    }
+}
+
+// MARK: - D-Pad Button
+
+struct DPadButton: View {
+    let systemImage: String
+    let action: () -> Void
+    
+    @State private var isPressed = false
+    
+    var body: some View {
+        Button(action: {
+            // Haptic feedback
+            #if os(iOS)
+            let impact = UIImpactFeedbackGenerator(style: .light)
+            impact.impactOccurred()
+            #endif
+            action()
+        }) {
+            Image(systemName: systemImage)
+                .font(.system(size: 24, weight: .bold))
+                .foregroundColor(isPressed ? .neonGreen : .white.opacity(0.8))
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .background(
+                    RoundedRectangle(cornerRadius: 12)
+                        .fill(isPressed ? Color.dpadButtonPressed : Color.dpadButton)
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: 12)
+                        .stroke(isPressed ? Color.neonGreen.opacity(0.5) : Color.clear, lineWidth: 2)
+                )
+        }
+        .buttonStyle(DPadButtonStyle(isPressed: $isPressed))
+    }
+}
+
+// MARK: - D-Pad Button Style
+
+struct DPadButtonStyle: ButtonStyle {
+    @Binding var isPressed: Bool
+    
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .scaleEffect(configuration.isPressed ? 0.95 : 1.0)
+            .animation(.easeInOut(duration: 0.1), value: configuration.isPressed)
+            .onChange(of: configuration.isPressed) { _, newValue in
+                isPressed = newValue
+            }
     }
 }
 
@@ -340,17 +511,23 @@ struct StartPrompt: View {
     @State private var isAnimating = false
     
     var body: some View {
-        Text("TAP TO START")
-            .font(.system(size: 20, weight: .bold, design: .monospaced))
-            .foregroundColor(.neonGreen)
-            .opacity(isAnimating ? 0.4 : 1.0)
-            .animation(
-                .easeInOut(duration: 0.8).repeatForever(autoreverses: true),
-                value: isAnimating
-            )
-            .onAppear {
-                isAnimating = true
-            }
+        VStack(spacing: 8) {
+            Text("TAP TO START")
+                .font(.system(size: 20, weight: .bold, design: .monospaced))
+                .foregroundColor(.neonGreen)
+            
+            Text("or press SPACE")
+                .font(.system(size: 14, weight: .medium, design: .monospaced))
+                .foregroundColor(.gray)
+        }
+        .opacity(isAnimating ? 0.4 : 1.0)
+        .animation(
+            .easeInOut(duration: 0.8).repeatForever(autoreverses: true),
+            value: isAnimating
+        )
+        .onAppear {
+            isAnimating = true
+        }
     }
 }
 
@@ -418,6 +595,13 @@ struct GameOverOverlay: View {
                 .scaleEffect(animateIn ? 1 : 0.5)
                 .opacity(animateIn ? 1 : 0)
                 .animation(.spring(response: 0.5, dampingFraction: 0.7).delay(0.2), value: animateIn)
+                
+                // Keyboard hint
+                Text("Press SPACE to restart")
+                    .font(.system(size: 14, weight: .medium, design: .monospaced))
+                    .foregroundColor(.gray)
+                    .opacity(animateIn ? 1 : 0)
+                    .animation(.easeIn.delay(0.4), value: animateIn)
             }
         }
         .onAppear {
